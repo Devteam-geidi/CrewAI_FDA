@@ -1,0 +1,247 @@
+🧠 CrewAI Email Classification — Detailed Notes
+(Last updated: 2025-08-13)
+
+1) Pipeline Overview
+--------------------
+Input:
+  POST /classify with {subject, body, from_address, optional message_id, in_reply_to, attachment_links[]}
+
+Flow:
+  a) Attachment handling
+     - Downloads PDF attachments; extracts text with PyMuPDF; truncates length (PDF_MAX_PAGES, PDF_MAX_CHARS).
+     - Extracted text is appended to the body as context.
+
+  b) BaseClassifier (keyword fast-path)
+     - Word-boundary keyword scan over subject + body + attachment text + sender.
+     - First matching route wins (deterministic). If none: "Needs Human Review".
+     - (Optional later: scoring-based matcher under USE_SCORING_BASE.)
+
+  c) Route LLM Agent
+     - AgentFactory instantiates per-route LLMEmailAgent from YAML.
+     - Strict output format is enforced (Route:, Reason:, Confidence:, ---END---).
+     - Supports: "Route: <ThisRoute>" OR "Route: Try Fallback Agent <OtherRoute>" OR "Route: Needs Human Review".
+
+  d) Fallbacks & Manager
+     - If agent says "Try Fallback Agent X": run agent X (single handoff).
+     - If unresolved OR no base match: invoke Manager layer.
+        • Default: EscalationAgent — tries routes within the same fallback group; skips already-used; capped attempts.
+        • Optional: CrewManagerAgent — LLM triage to pick the best candidate route, then executes that route’s agent.
+     - Manager returns a resolved route or Needs Human Review.
+
+  e) Decision & Actions
+     - Compare agent/manager confidence vs threshold (per-route min_confidence if defined, else global 0.6).
+     - If >= threshold → action_taken=auto_routed → Supabase insert (+ optional per-route webhook).
+     - Else → action_taken=human_review → call WEBHOOK_URL (if configured) + Supabase insert.
+
+Observability:
+  - main.py prints a classification_trace of each stage for transparency.
+  - All external calls (Supabase/webhooks) are logged with status codes.
+
+
+2) Manager Layer
+----------------
+EscalationAgent (default):
+  - Reads classification_fallback_groups.yaml to build group-wise candidates.
+  - Tries unused routes in the same group (MAX_FALLBACK_ATTEMPTS, default 3).
+  - Returns first non-NHR result or Needs Human Review.
+
+CrewManagerAgent (optional; set USE_CREW_MANAGER=1):
+  - Candidate scoring: quick keyword-weighted shortlist (e.g., invoice/overdue/remittance).
+  - TRIAGE via LLM (DEFAULT_MANAGER_MODEL, e.g., gpt-5 or gpt-4o) chooses a single allowed route or NHR.
+  - Executes the selected route’s agent and returns its result if resolved.
+  - Implementation detail: temperature is omitted to satisfy models that require default temperature.
+  - Optional confidence gate (set MANAGER_TRIAGE_MINCONF, e.g., 0.65) to skip execution when triage confidence is low.
+
+Notes:
+  - The manager now runs when the initial route returns NHR, when fallbacks fail, or when base had no match.
+
+
+3) Config Files
+---------------
+classification_rules.yaml
+  - Per-route specs: name, group, description, keywords, use_llm, model, default_confidence, (optional) min_confidence, prompt_template.
+  - Prompt must output EXACT format:
+      Route: <RouteName | Try Fallback Agent <Route> | Needs Human Review>
+      Reason: <one sentence>
+      Confidence: <0.0-1.0>
+      ---END---
+
+classification_fallback_groups.yaml
+  - Maps group → [routes...] for EscalationAgent.
+  - Regenerate with: python scripts/generate_fallback_groups.py (or edit manually).
+
+routes.yaml (optional)
+  - Per-route webhooks/actions (e.g., System_Proofpoint, Finance_Remittance).
+  - If not present, WEBHOOK_URL in env is used for human_review only.
+
+New/Notable Routes:
+  - Finance_Remittance: handles remittance advice / proof-of-payment (POP), EFT/TT receipts, deposit slips.
+  - System_Proofpoint: Proofpoint Essentials quarantine digests.
+  - Email_Failed_Delivery: bounce/undelivered/Mailer-Daemon notices.
+
+
+4) Agents
+---------
+LLMEmailAgent / BaseLLMAgent:
+  - Loads YAML settings; enforces strict parser.
+  - Recognizes "Try Fallback Agent <Route>" and forwards control safely.
+  - Validates that the chosen route exists; otherwise NHR.
+
+PayBot:
+  - Helper for Finance_Unpaid (keyword/sender patterns, may advise overdue fallback).
+
+EscalationAgent:
+  - Grouped fallback attempts (skips already used routes, capped by MAX_FALLBACK_ATTEMPTS).
+
+CrewManagerAgent:
+  - Real triage + delegation: produces "🧠 CrewManager TRIAGE Raw" logs and executes the chosen route’s agent.
+
+
+5) Confidence & Actions
+-----------------------
+Confidence Thresholds:
+  - Global CONFIDENCE_THRESHOLD=0.6 (in main.py).
+  - Per-route override via min_confidence in classification_rules.yaml (optional).
+
+Decision:
+  - If confidence >= threshold → auto_routed → Supabase insert and (optional) per-route webhook.
+  - If below threshold → human_review → calls WEBHOOK_URL (if set) and logs to Supabase.
+
+Per-route webhooks:
+  - routes.yaml can map specific routes to specific endpoints (e.g., remittance vs system alerts).
+
+
+6) Supabase & Threads
+---------------------
+Supabase:
+  - log_to_supabase() POSTs to SUPABASE_EMAILS_URL (table: emails) with:
+    subject, body_plain, message_id, in_reply_to, from_address, thread_id, received_at, classification, reason, flags.
+  - During dev, duplicate message_id replays can yield 409 conflicts (unique constraint).
+    • Harmless; optionally treat 409 as idempotent success in logs.
+
+Threads:
+  - thread_utils computes/looks up a thread_id using:
+    • In-reply-to linkage when available.
+    • Normalized subject hash as a fallback.
+
+
+7) Attachments
+--------------
+- PDFs fetched via requests; parsed with PyMuPDF (fitz).
+- Limited by PDF_MAX_PAGES and PDF_MAX_CHARS to prevent huge prompts.
+- Non-PDFs are skipped with a log warning (based on Content-Type).
+- Errors/timeouts are caught; extraction returns a placeholder string.
+
+
+8) API Endpoints
+----------------
+POST /classify
+  Request:
+    {
+      "subject": "Invoice for May",
+      "body": "Your invoice is due...",
+      "from_address": "billing@example.com",
+      "message_id": "optional, recommended for idempotency",
+      "in_reply_to": "optional",
+      "attachment_links": ["https://.../file.pdf"]
+    }
+
+  Response:
+    {
+      "confidence": 0.90,
+      "suggested_route": "Finance_Overdue",
+      "reason": "LLM/agent justification",
+      "action_taken": "auto_routed" | "human_review",
+      "classification_trace": [...],
+      "base_reason": "why base matched (if matched)"
+    }
+
+GET /ping
+  - Health check → { "status": "ok" }
+
+Ngrok Tip:
+  - When testing via ngrok, include header: ngrok-skip-browser-warning: 1
+
+
+9) Tests
+--------
+Command:
+  pytest -v
+
+Coverage:
+  - Invoice → Finance_Unpaid
+  - Overdue → fallback to Finance_Overdue
+  - Unknown → Needs Human Review
+  - (You can add: Remittance → Finance_Remittance / Paid / Unpaid)
+
+Testing Advice:
+  - Mock OpenAI, requests, and Supabase for hermetic unit tests.
+  - Use unique message_id values in tests to avoid 409 noise.
+
+
+10) Operational Flags & Env
+---------------------------
+Required env (loaded by env_loader.py):
+  SUPABASE_URL, SUPABASE_EMAILS_URL, SUPABASE_KEY, OPENAI_API_KEY, WEBHOOK_URL
+
+Optional:
+  USE_CREW_MANAGER=1           # use CrewManagerAgent instead of EscalationAgent
+  DEFAULT_MANAGER_MODEL=gpt-5  # or gpt-4o
+  MANAGER_TRIAGE_MINCONF=0.65  # gate to skip execution on low triage confidence
+  MAX_FALLBACK_ATTEMPTS=3      # cap for EscalationAgent
+  PDF_MAX_PAGES=20             # doc parsing safety bound
+  # USE_SCORING_BASE=1         # future option for a scoring base matcher
+
+Windows venv + ngrok notes:
+  - Activate venv: & ".\.venv\Scripts\Activate.ps1"
+  - Example ngrok path:
+      C:\Users\rey\Downloads\ngrok-v3-stable-windows-amd64\ngrok.exe
+
+
+11) Adding or Modifying Routes
+------------------------------
+Steps:
+  1) Add a YAML block to classification_rules.yaml:
+     - name, group, description, keywords, use_llm, model, default_confidence, (optional) min_confidence
+     - prompt_template must output EXACT strict format and end with ---END---
+  2) Add the route to its group in classification_fallback_groups.yaml
+  3) (Optional) Add a per-route webhook in routes.yaml
+  4) Restart the server (AgentFactory will auto-load)
+  5) Test via /classify with representative examples
+
+Example formats already in use:
+  - Email_Failed_Delivery → bounce/failure notices
+  - Finance_Remittance → remittance advice / POP (can hand off to Paid/Unpaid when appropriate)
+
+
+12) Troubleshooting
+-------------------
+- Manager triage 400 "temperature unsupported":
+  • Fixed by omitting temperature parameter; ensure DEFAULT_MANAGER_MODEL is set.
+
+- Supabase 409 duplicate key:
+  • Caused by replaying same message_id during dev; treat as idempotent or generate unique IDs.
+
+- Human-review webhook 404:
+  • Indicates inactive/unregistered workflow at WEBHOOK_URL; switch to a test endpoint during dev.
+
+- Ngrok returns HTML "OK":
+  • Add header ngrok-skip-browser-warning: 1
+
+- Parser errors (missing ---END--- or malformed):
+  • Tighten prompts; ensure agents always end with ---END--- and include Route/Reason/Confidence.
+
+- Fallback route not found:
+  • Ensure "Try Fallback Agent <Route>" matches an existing route name exactly (YAML).
+
+- Base misroutes on weak tokens (e.g., “geidi”):
+  • Strengthen keywords, reorder YAML so specific routes appear earlier, or enable scoring base later.
+
+
+13) Changelog (recent)
+----------------------
+- Added: Finance_Remittance route for remittance advice / POP.
+- Added: CrewManagerAgent (LLM triage + delegate), behind USE_CREW_MANAGER=1.
+- Changed: Legacy ManagerAgent split into EscalationAgent (default) and CrewManagerAgent (optional).
+- Improved: PDF extraction safety bounds; word-boundary keyword matching; clearer logs/trace.
+- Optional: Per-route min_confidence; per-route webhooks via routes.yaml.

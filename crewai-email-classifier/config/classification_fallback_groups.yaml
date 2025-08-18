@@ -1,0 +1,48 @@
+fallback_groups:
+  finance:
+  - Finance_Paid
+  - Finance_Unpaid
+  - Finance_Overdue
+  - Finance_Remittance
+  - Finance_Kinsta_Nise
+  - Finance_Approval_Notice
+  - Finance_Exceptional_Invoice
+  entity specific:
+  - Finance_Synergy_Zanovar
+  - Finance_Synergy_Geidi
+  - Finance_Swoop_Yudi
+  - Finance_Swoop_Geidi
+  - Finance_Vodafone
+  - Finance_Atlassian_JustaBaby
+  - Finance_Atlassian_Geidi
+  - Finance_Synergy_Zanovar
+  - Finance_Synergy_Geidi
+  - Finance_Swoop_Yudi
+  - Finance_Swoop_Geidi
+  - Finance_Atlassian_JustaBaby
+  - Finance_Atlassian_Geidi
+  soa:
+  - Finance_SOA
+  - Procurement_SOA
+  - Finance_Rhipe_UsageReport
+  client:
+  - Client_Dispute_Geidi
+  - Client_Dispute_ASO
+  - Client_Receipt_Confirmation
+  - Client_Request_InvoiceCopy
+  - Client_Payment_Info
+  promotional:
+  - Finance_Promotional_Relevant
+  - Finance_Promotional_Subscription
+  internal:
+  - Entity_Forward
+  - Internal_Requires_Action
+  - Internal_No_Action
+  - Internal_From_Paul
+  procurement & outsourcing:
+  - Outsourced_Work_Invoice
+  - Procurement_Invoice
+  - Supplier_Summary_Report
+  system:
+  - System_Proofpoint
+  - Email_Failed_Delivery

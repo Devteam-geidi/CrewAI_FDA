@@ -1,0 +1,22 @@
+fastapi
+uvicorn
+httpx
+pydantic
+crewai==0.108.0
+langchain-openai==0.1.7  # Needed for ChatOpenAI
+openai
+rapidfuzz
+psutil
+functions-framework
+pyyaml
+langchain
+chromadb
+hnswlib
+sentence-transformers
+asgiref
+tldextract
+
+# PDF reading dependencies
+pdfplumber
+pdf2
+pillow
