@@ -1285,10 +1285,29 @@ def create_crew_system(yaml_data):
         agent_key = f"{role}_{goal}"
 
         # ✅ Explicit model definition
+        # llm = ChatOpenAI(
+        #     model="gpt-4o",  # You can swap this to "gpt-4o-mini" or "gpt-3.5-turbo"
+        #     temperature=0.2,
+        #     openai_api_key=OPENAI_API_KEY
+        # )
+
+        #Helicone Setup
         llm = ChatOpenAI(
-            model="gpt-4o",  # You can swap this to "gpt-4o-mini" or "gpt-3.5-turbo"
+            model="gpt-4o",
             temperature=0.2,
-            openai_api_key=OPENAI_API_KEY
+            openai_api_key=OPENAI_API_KEY,
+            openai_api_base=os.getenv("HELICONE_BASE_URL", "https://oai.helicone.ai/v1"),
+            openai_api_headers={
+                "Helicone-Auth": f"Bearer {os.environ.get('HELICONE_API_KEY','')}",
+                # Optional, but super useful for dashboards & filtering:
+                "Helicone-User-Id": "finance-mailbot",              # any stable user id
+                "Helicone-Session-Id": "{email_pipeline}",          # a coarse session bucket
+                "Helicone-Cache-Enabled": "true",                   # turn on caching
+                "Cache-Control": "max-age=604800",                  # 7-day cache, optional
+                # You can tag arbitrary properties:
+                "Helicone-Property-App": "email-classifier",
+                "Helicone-Property-Env": os.getenv("APP_ENV","prod"),
+            }
         )
 
         if agent_key in state.persistent_agents:
@@ -2074,6 +2093,18 @@ async def force_memory_optimization():
 async def startup_event():
     logging.info("Starting up the application...")
     openai.api_key = OPENAI_API_KEY
+
+    # Route OpenAI SDK through Helicone
+    openai.api_base = os.getenv("HELICONE_BASE_URL", "https://oai.helicone.ai/v1")
+    openai.default_headers = {
+        "Helicone-Auth": f"Bearer {os.environ.get('HELICONE_API_KEY','')}",
+        # optional observability/caching headers (same as above):
+        "Helicone-User-Id": "finance-mailbot",
+        "Helicone-Session-Id": "email-pipeline",
+        "Helicone-Cache-Enabled": "true",
+        "Cache-Control": "max-age=604800",
+        "Helicone-Property-App": "email-classifier",
+    }
 
     try:
         import psutil
