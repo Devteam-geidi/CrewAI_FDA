@@ -9,6 +9,12 @@ from openai import OpenAI, OpenAIError
 from agents.base_agent import BaseEmailClassifierAgent
 import re
 import os  # ← NEW
+from dotenv import load_dotenv
+load_dotenv()
+
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+HELICONE_API_KEY = os.getenv("HELICONE_API_KEY", "")
+HELICONE_BASE_URL = os.getenv("HELICONE_BASE_URL", "https://oai.helicone.ai/v1")
 
 class BaseLLMAgent(BaseEmailClassifierAgent):
     def __init__(self, route_name, prompt_template, confidence=0.8, known_routes=None, model: str | None = None):  # ← NEW param
@@ -21,20 +27,24 @@ class BaseLLMAgent(BaseEmailClassifierAgent):
 
     def classify(self, subject: str, body: str, sender: str, attachment_text: str) -> ClassificationResult:
         try:
-            client = OpenAI(api_key=OPENAI_API_KEY)
+            client = OpenAI(
+                api_key=OPENAI_API_KEY,
+                base_url=HELICONE_BASE_URL,
+                default_headers={
+                    "Helicone-Auth": f"Bearer {HELICONE_API_KEY}",
+                    "Helicone-User-Id": os.getenv("HELICONE_USER_ID", "finance-mailbot"),
+                    "Helicone-Session-Id": self.route_name,
+                    "Helicone-Cache-Enabled": os.getenv("HELICONE_CACHE_ENABLED", "false"),
+                    "Helicone-Property-App": "email-classifier",
+                    "Helicone-Property-Env": os.getenv("APP_ENV", "prod"),
+                }
+            )
+
             full_email = f"Subject: {subject}\nFrom: {sender}\nBody: {body}\nAttachment: {attachment_text}"
-
-            try:
-                prompt = self.prompt_template.format(email_content=full_email)
-            except Exception as format_error:
-                print(f"❌ Error formatting prompt: {format_error}")
-                print(f"🧩 Raw Template:\n{self.prompt_template}")
-                return ClassificationResult.needs_human_review("Prompt formatting failed.")
-
-            print("=" * 40)
+            prompt = self.prompt_template.format(email_content=full_email)
 
             response = client.chat.completions.create(
-                model=self.model,  # ← CHANGED: use configured model
+                model=self.model,
                 messages=[{"role": "system", "content": prompt}],
                 temperature=0
             )

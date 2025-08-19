@@ -314,3 +314,20 @@ System design & orchestration: @Geidi_Dev
 
 Dev agent strategy & YAML prompt architecture: CrewAI
 
+
+
+
+
+# local setup
+add .venv 
+: python -m venv .venv
+To activate .venv 
+: .venv\Scripts\activate.ps1
+
+Install all dependencies listted in requirements.txt
+
+To run
+run ngrok
+: ngrok http 8000     
+then in another terminal under the same root project directory
+: uvicorn main:app
