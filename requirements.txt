@@ -20,3 +20,4 @@ supabase
 # PDF reading dependencies
 pdfplumber
 pillow
+PyMuPDF
