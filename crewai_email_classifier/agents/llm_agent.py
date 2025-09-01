@@ -1,5 +1,5 @@
-from agents.base_llm_agent import BaseLLMAgent
-from utils.classification_result import ClassificationResult
+from crewai_email_classifier.agents.base_llm_agent import BaseLLMAgent
+from crewai_email_classifier.utils.classification_result import ClassificationResult
 
 class LLMEmailAgent(BaseLLMAgent):
     def __init__(self, route_name, prompt_template, confidence=0.8, known_routes=None, model: str | None = None):  # ← NEW

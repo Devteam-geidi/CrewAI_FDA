@@ -1,5 +1,5 @@
-from agents.base_agent import BaseEmailClassifierAgent
-from utils.classification_result import ClassificationResult
+from crewai_email_classifier.agents.base_agent import BaseEmailClassifierAgent
+from crewai_email_classifier.utils.classification_result import ClassificationResult
 
 class PayBot(BaseEmailClassifierAgent):
     def __init__(self):

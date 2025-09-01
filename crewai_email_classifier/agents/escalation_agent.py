@@ -1,6 +1,6 @@
-from utils.classification_result import ClassificationResult
-from utils.classification_loader import load_fallback_groups, load_known_routes, load_classifications
-from agents.agent_factory import AgentFactory
+from crewai_email_classifier.utils.classification_result import ClassificationResult
+from crewai_email_classifier.utils.classification_loader import load_fallback_groups, load_known_routes, load_classifications
+from crewai_email_classifier.agents.agent_factory import AgentFactory
 import os, re
 from collections import defaultdict
 

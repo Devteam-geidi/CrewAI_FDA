@@ -1,4 +1,4 @@
-from utils.env_loader import SUPABASE_URL, SUPABASE_KEY
+from crewai_email_classifier.utils.env_loader import SUPABASE_URL, SUPABASE_KEY
 from supabase import create_client
 from postgrest.exceptions import APIError
 import hashlib

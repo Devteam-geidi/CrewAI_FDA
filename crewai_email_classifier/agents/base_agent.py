@@ -2,8 +2,8 @@
 
 from abc import ABC, abstractmethod
 import os
-from utils.classification_result import ClassificationResult
-from utils.webhook_sender import send_to_n8n
+from crewai_email_classifier.utils.classification_result import ClassificationResult
+from crewai_email_classifier.utils.webhook_sender import send_to_n8n
 
 
 class BaseEmailClassifierAgent(ABC):

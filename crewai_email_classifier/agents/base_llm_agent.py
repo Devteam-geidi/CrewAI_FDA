@@ -2,11 +2,11 @@
 # 🤖 BaseLLMAgent
 # -----------------------------------------------------
 
-from utils.env_loader import OPENAI_API_KEY
-from utils.classification_result import ClassificationResult
-from utils.classification_loader import load_known_routes
+from crewai_email_classifier.utils.env_loader import OPENAI_API_KEY
+from crewai_email_classifier.utils.classification_result import ClassificationResult
+from crewai_email_classifier.utils.classification_loader import load_known_routes
 from openai import OpenAI, OpenAIError
-from agents.base_agent import BaseEmailClassifierAgent
+from crewai_email_classifier.agents.base_agent import BaseEmailClassifierAgent
 import re
 import os  # ← NEW
 from dotenv import load_dotenv
