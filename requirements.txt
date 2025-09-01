@@ -18,5 +18,4 @@ tldextract
 
 # PDF reading dependencies
 pdfplumber
-pdf2
 pillow
