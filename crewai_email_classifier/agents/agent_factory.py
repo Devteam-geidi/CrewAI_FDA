@@ -6,9 +6,9 @@
 # Supports both LLM-based and static rule-based agents (like PayBot).
 # -----------------------------------------------------
 
-from utils.classification_loader import load_classifications
-from agents.llm_agent import LLMEmailAgent
-from agents.paybot import PayBot
+from crewai_email_classifier.utils.classification_loader import load_classifications
+from crewai_email_classifier.agents.llm_agent import LLMEmailAgent
+from crewai_email_classifier.agents.paybot import PayBot
 
 class AgentFactory:
     def __init__(self, yaml_path="config/classification_rules.yaml"):

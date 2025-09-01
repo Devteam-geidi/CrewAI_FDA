@@ -1,7 +1,7 @@
-from utils.classification_result import ClassificationResult
-from utils.classification_loader import load_classifications, load_known_routes
-from agents.agent_factory import AgentFactory
-from utils.env_loader import OPENAI_API_KEY
+from crewai_email_classifier.utils.classification_result import ClassificationResult
+from crewai_email_classifier.utils.classification_loader import load_classifications, load_known_routes
+from crewai_email_classifier.agents.agent_factory import AgentFactory
+from crewai_email_classifier.utils.env_loader import OPENAI_API_KEY
 from openai import OpenAI
 import os, re
 
