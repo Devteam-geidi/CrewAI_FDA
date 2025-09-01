@@ -15,6 +15,7 @@ hnswlib
 sentence-transformers
 asgiref
 tldextract
+python=3.10
 
 # PDF reading dependencies
 pdfplumber
