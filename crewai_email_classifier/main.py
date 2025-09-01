@@ -1,12 +1,12 @@
 # 📧 Email Classification API (FastAPI)
 
-from utils.env_loader import SUPABASE_URL, SUPABASE_EMAILS_URL, SUPABASE_KEY, WEBHOOK_URL
-from agents.agent_factory import AgentFactory
+from crewai_email_classifier.utils.env_loader import SUPABASE_URL, SUPABASE_EMAILS_URL, SUPABASE_KEY, WEBHOOK_URL
+from crewai_email_classifier.agents.agent_factory import AgentFactory
 
 # Manager selection (EscalationAgent default; CrewManagerAgent behind flag)
-from agents.escalation_agent import EscalationAgent
+from crewai_email_classifier.agents.escalation_agent import EscalationAgent
 try:
-    from agents.crew_manager_agent import CrewManagerAgent
+    from crewai_email_classifier.agents.crew_manager_agent import CrewManagerAgent
 except Exception:
     CrewManagerAgent = None
 
@@ -14,9 +14,9 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import List, Optional
-from utils.classification_result import ClassificationResult
-from utils.thread_utils import get_or_create_thread_id
-from utils.classification_loader import load_classifications  # NEW: per-route thresholds
+from crewai_email_classifier.utils.classification_result import ClassificationResult
+from crewai_email_classifier.utils.thread_utils import get_or_create_thread_id
+from crewai_email_classifier.utils.classification_loader import load_classifications  # NEW: per-route thresholds
 import requests
 import fitz  # PyMuPDF
 import os
@@ -144,6 +144,31 @@ def log_to_supabase(subject, body, message_id, in_reply_to, from_address, thread
         print("❌ Supabase logging timeout")
     except Exception as e:
         print(f"❌ Supabase logging error: {e}")
+
+# ===============================
+# 🆕 Build Webhook Payload
+# ===============================
+def build_webhook_payload(email_subject, email_body, from_address, attachment_text,
+                          message_id, in_reply_to, route, reason, confidence, trace, action):
+    return {
+        "email_subject": email_subject,
+        "email_body": email_body,
+        "from_address": from_address,
+        "attachment_text": attachment_text,
+        "message_id": message_id,
+        "in_reply_to": in_reply_to,
+        "classification": {
+            "route": route,
+            "reason": reason,
+            "confidence": confidence,
+            "trace": trace,
+            "action_taken": action
+        },
+        "received_at": datetime.utcnow().isoformat()
+    }
+
+
+
 
 # ===============================
 # 🧐 Base Classifier (keyword with word boundaries)

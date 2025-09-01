@@ -1,7 +1,9 @@
 # agents/base_agent.py
 
 from abc import ABC, abstractmethod
+import os
 from utils.classification_result import ClassificationResult
+from utils.webhook_sender import send_to_n8n
 
 
 class BaseEmailClassifierAgent(ABC):
@@ -9,6 +11,8 @@ class BaseEmailClassifierAgent(ABC):
     Abstract base class for all email classification agents.
     Subclasses must implement the classify method and return a ClassificationResult.
     """
+    # Load webhook URL from environment (configurable per deployment)
+    N8N_WEBHOOK_URL = os.getenv("N8N_WEBHOOK_URL", "https://geidi.app.n8n.cloud/webhook/forward")
 
     @property
     def name(self) -> str:
@@ -27,6 +31,25 @@ class BaseEmailClassifierAgent(ABC):
         :return: ClassificationResult(route, confidence, reason[, fallback_route])
         """
         pass
+
+    def classify_and_send(self, subject: str, body: str, sender: str, attachment_text: str) -> ClassificationResult:
+        """
+        Wrapper: Calls classify(), then automatically forwards the result to n8n.
+        """
+        result = self.classify(subject, body, sender, attachment_text)
+
+        if isinstance(result, ClassificationResult):
+            payload = {
+                "agent": self.name,
+                "subject": subject,
+                "sender": sender,
+                "route": result.route,
+                "reason": result.reason,
+                "confidence": result.confidence,
+            }
+            send_to_n8n(payload, self.N8N_WEBHOOK_URL)
+
+        return result
 
     def log_debug_info(self, subject: str, body: str, sender: str, attachment_text: str):
         """
